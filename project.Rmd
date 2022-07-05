@@ -1,0 +1,322 @@
+---
+title: 'Math 455: Team Project'
+author: "GANG YANG, Vincent Wu"
+date: "Due date = "
+output:
+  pdf_document:
+    latex_engine: xelatex
+    includes:
+      in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{R echo=FALSE,warning = FALSE,message = FALSE}
+library(ggplot2)
+library(mdsr)
+library(tidyverse)
+library(tidyr)
+library(GGally)
+library(car)
+library(MASS)
+
+```
+
+## About the Data:
+The data is from Ames, Iowa Assessor’s Office. This data contains information from the Ames Assessor’s Office to compute the value for houses. We will use the data to predict the sale price of the house. This data contains 2000 observations.
+
+
+## Our GOAL:
+Our goal is to produce a simple model which take only the most important variables as predictor variables to predict the final sale price base on the data given. 
+
+## Method:
+We first load our data.
+```{R,result = FALSE}
+data = read.csv("http://people.math.binghamton.edu/qiao/math455/data/ames2000_NAfix.csv")
+data1 <- data
+```
+
+```{R,echo=FALSE}
+data[data == "None"] <- 0
+data[data == " "] <- 0
+data1[data1 == "None"] <- 0
+data1[data1 == " "] <- 0
+```
+Then we convert the data into factor so that we have levels for our qualitative variable, and then we convert the factor into numeric by the level. What may cause problem is that the variable may not be leveled in an order, for example, the lot shape in this data. The irregular shape of property may or may not be more expensive than the regular shape of property. This will make the coefficient for this variable not useful and helpful in our analysis.
+We also add three "whether cols" in data to see whether we could regard Pool, Porch, basement bath to included or not included.
+```{R,echo=FALSE,result = FALSE}
+cfactor <- function(x){
+  x = factor(x)
+  x = as.numeric(x)
+  return(x)
+}
+data1$MS.Zoning <- cfactor(data1$MS.Zoning)
+data1$Street <- cfactor(data1$Street)
+data1$Alley <- cfactor(data1$Alley)
+data1$Lot.Shape <- cfactor(data1$Lot.Shape)
+data1$Land.Contour <- cfactor(data1$Land.Contour)
+data1$Utilities <- cfactor(data1$Utilities)
+data1$Lot.Config <- cfactor(data1$Lot.Config)
+data1$Land.Slope <- cfactor(data1$Land.Slope)
+data1$Neighborhood <- cfactor(data1$Neighborhood)
+data1$Condition.1 <- cfactor(data1$Condition.1)
+data1$Condition.2 <- cfactor(data1$Condition.2)
+data1$Bldg.Type <- cfactor(data1$Bldg.Type)
+data1$House.Style <- cfactor(data1$House.Style)
+data1$Roof.Style <- cfactor(data1$Roof.Style)
+data1$Exterior.1st <- cfactor(data1$Exterior.1st)
+data1$Exterior.2nd <- cfactor(data1$Exterior.2nd)
+data1$Mas.Vnr.Type <- cfactor(data1$Mas.Vnr.Type)
+data1$Exter.Qual <- cfactor(data1$Exter.Qual)
+data1$Exter.Cond <- cfactor(data1$Exter.Cond)
+data1$Foundation <- cfactor(data1$Foundation)
+data1$Bsmt.Qual <- cfactor(data1$Bsmt.Qual)
+data1$Bsmt.Cond <- cfactor(data1$Bsmt.Cond)
+data1$Bsmt.Exposure <- cfactor(data1$Bsmt.Exposure)
+data1$BsmtFin.Type.1 <- cfactor(data1$BsmtFin.Type.1)
+data1$BsmtFin.Type.2 <- cfactor(data1$BsmtFin.Type.2)
+data1$Heating <- cfactor(data1$Heating)
+data1$Heating.QC <- cfactor(data1$Heating.QC)
+data1$Central.Air <- cfactor(data$Central.Air)
+data1$Sale.Condition <- cfactor(data1$Sale.Condition)
+data1$Sale.Type <- cfactor(data1$Sale.Type)
+data1$Fence <- cfactor(data1$Fence)
+data1$Pool.QC <- cfactor(data1$Pool.QC)
+data1$Fence <- cfactor(data1$Fence)
+data1$Paved.Drive <- cfactor(data1$Paved.Drive)
+data1$Garage.Cond <- cfactor(data1$Garage.Cond)
+data1$Garage.Qual <- cfactor(data1$Garage.Qual)
+data1$Garage.Finish <- cfactor(data1$Garage.Finish)
+data1$Garage.Type <- cfactor(data1$Garage.Type)
+data1$Fireplace.Qu <- cfactor(data1$Fireplace.Qu)
+data1$Functional <- cfactor(data1$Functional)
+data1$Kitchen.Qual <- cfactor(data1$Kitchen.Qual)
+data1$Electrical <- cfactor(data1$Electrical)
+data1$Misc.Feature <- cfactor(data1$Misc.Feature)
+data1$Roof.Matl <- cfactor(data1$Roof.Matl)
+```
+
+```{R,echo=FALSE,result = FALSE}
+data1$Lot.Frontage <- as.numeric(data1$Lot.Frontage)
+data1$Mas.Vnr.Area <- as.numeric(data1$Mas.Vnr.Area)
+data1$BsmtFin.SF.1 <- as.numeric(data1$BsmtFin.SF.1)
+data1$BsmtFin.SF.2 <- as.numeric(data1$BsmtFin.SF.2)
+data1$Bsmt.Unf.SF <- as.numeric(data1$Bsmt.Unf.SF)
+data1$Total.Bsmt.SF <- as.numeric(data1$Total.Bsmt.SF)
+data1$Garage.Yr.Blt <- as.numeric(data1$Garage.Yr.Blt)
+data1$Garage.Area <- as.numeric(data1$Garage.Area)
+data1$Bsmt.Full.Bath <- as.numeric(data1$Bsmt.Full.Bath)
+data1$Bsmt.Half.Bath <- as.numeric(data1$Bsmt.Half.Bath)
+data1$Garage.Cars <- as.numeric(data1$Garage.Cars)
+data1$WhetherPool <- ifelse(data1$Pool.Area == "0", 0, 1)
+data1$WhetherPorch <- ifelse(data1$Open.Porch.SF != "0" | data1$X3Ssn.Porch != "0" | data1$Screen.Porch != "0" | data1$Enclosed.Porch != "0", 1, 0)
+data1$whetherbasebath <- ifelse(data1$Bsmt.Half.Bath != "0" | data1$Bsmt.Full.Bath != "0", 1, 0)
+data1$Street <- ifelse(data1$Street == "2", 1, 0)
+#We add some whether xx to see if there is a chance to reduce(combine) some vectors.
+```
+
+Then we set seed and randomly split the data into training data and testing data. 
+```{R echo=FALSE}
+set.seed(233)
+data1c1 <- sample(seq_len(nrow(data1)), size = floor(0.5*nrow(data1)))
+data1c <- data1[data1c1,]
+data1n <- data1[-data1c1,]
+```
+
+Then we build a full model. The full model contains 81 predictor variables, 82 with the intercept.
+```{R,echo=FALSE,result = FALSE}
+r1 <- lm(SalePrice ~ . -1, data1c) # no intercept model
+r2 <- lm(SalePrice ~ ., data1c)
+reduce <- lm(SalePrice ~ 1, data1c)
+summary(r1)
+#summary(r2)
+#summary(reduce)
+```
+
+\newpage
+Then we compare the full model with ultra simple model which is the no predictor variable,result is shown below, as expected, there is a huge difference
+```{R,echo=FALSE,result = FALSE}
+anova(reduce, r2)
+```
+
+\newpage
+Then we use BIC step backward selection to reduce the model.
+```{R,echo=FALSE,result = FALSE}
+step_back <- step(lm(SalePrice ~ ., data1c), direction = 'backward', trace = F, k=log(nrow(data1c)))  
+step_back_non <- step(lm(SalePrice ~ .-1, data1c), direction = 'backward', trace = F, k=log(nrow(data1c)))
+```
+
+After we reduce the model, we compare the reduced model with no intercept reduced model. After we compare it, we decide to use intercept model, which have 1 intercept and 28 predictor variables. We see that after step backward selection, intercept is somehow important in a way.
+```{R,echo=FALSE,result = FALSE}
+#summary(step_back)
+#summary(step_back_non)
+anova(step_back_non, step_back) 
+```
+
+\newpage
+Then we used correlation test to further reduce the predictor variables. After we reduce some predictor variables, our new model has 1 intercept and 20 predictor variables.
+```{R,echo=FALSE,result = FALSE}
+cor.test(data1$Overall.Cond, data1$Year.Built)
+cor.test(data1$Overall.Cond, data1$Overall.Qual)
+cor.test(data1$X1st.Flr.SF, data1$X2nd.Flr.SF)
+cor.test(data1$Bsmt.Full.Bath, data1$Bsmt.Half.Bath)
+cor.test(data1$Bedroom.AbvGr, data1$TotRms.AbvGrd)
+cor.test(data1$Kitchen.AbvGr, data1$Kitchen.Qual)
+
+
+rn <- lm(SalePrice ~ Lot.Area + Street + Land.Slope + Bldg.Type + Overall.Qual + Mas.Vnr.Area + 
+           Exter.Qual + Bsmt.Qual + X1st.Flr.SF + Bsmt.Full.Bath + Kitchen.Qual + TotRms.AbvGrd + 
+           Functional + Garage.Yr.Blt + Garage.Cars + Wood.Deck.SF + Enclosed.Porch + Screen.Porch + 
+           Pool.Area + Sale.Condition, data = data1c)
+
+```
+
+\newpage
+Then we first pick some suspicious predictor variables and check if they need to be transformed or not. The transformation we made is we take log of the predictor variable “Lot.Area”. We take square root of the predictor variable “X1st.Flr.SF”. The rest remain the same.
+
+Before transformation:
+
+```{R,echo=FALSE,result = FALSE}
+par(mfrow = c(2,4)) 
+crPlots(rn, terms = ~ Lot.Area)
+crPlots(rn, terms = ~ Overall.Qual)
+crPlots(rn, terms = ~ Exter.Qual)
+crPlots(rn, terms = ~ Bsmt.Qual)
+crPlots(rn, terms = ~ X1st.Flr.SF)
+crPlots(rn, terms = ~ TotRms.AbvGrd)
+crPlots(rn, terms = ~ Functional)
+crPlots(rn, terms = ~ Sale.Condition)
+
+rn1 <- lm(SalePrice ~ log(Lot.Area) + Street + Land.Slope + Bldg.Type + Overall.Qual + Mas.Vnr.Area + 
+           Exter.Qual + Bsmt.Qual + sqrt(X1st.Flr.SF) + Bsmt.Full.Bath + Kitchen.Qual + TotRms.AbvGrd + 
+           Functional + Garage.Yr.Blt + Garage.Cars + Wood.Deck.SF + Enclosed.Porch + Screen.Porch + 
+           Pool.Area + Sale.Condition, data = data1c)
+```
+
+\newpage
+After transformation:
+
+```{R,echo=FALSE}
+par(mfrow = c(2,4))
+crPlots(rn1, terms = ~ log(Lot.Area))
+crPlots(rn1, terms = ~ Overall.Qual)
+crPlots(rn1, terms = ~ Exter.Qual)
+crPlots(rn1, terms = ~ Bsmt.Qual)
+crPlots(rn1, terms = ~ sqrt(X1st.Flr.SF))
+crPlots(rn1, terms = ~ TotRms.AbvGrd)
+crPlots(rn1, terms = ~ Functional)
+crPlots(rn1, terms = ~ Sale.Condition)
+```
+
+\newpage
+Then we check if the response variable needs to be transformed or not. We using Box-Cox and the $\lambda$ close to 0.3, which is closer to 0.5 than 0. Thus, our result suggests that we should take square root of the response variable rather than log in our model.
+
+```{R,echo=FALSE}
+
+par(mfrow = c(1,2))
+
+boxcox(rn1, plotit=T)
+
+boxcox(rn1, plotit=T, lambda=seq(0.0,0.5,by=0.1))
+
+#Since $\lambda$ close to 0.3, which is closer to 0.5 than 0, we use sqrt to transform the response variable rather than log.
+
+rn2 <- lm(sqrt(SalePrice) ~ log(Lot.Area) + Street + Land.Slope + Bldg.Type + 
+            Overall.Qual + Mas.Vnr.Area + Exter.Qual + Bsmt.Qual + 
+            sqrt(X1st.Flr.SF) + Bsmt.Full.Bath + Kitchen.Qual + TotRms.AbvGrd + 
+            Functional + Garage.Yr.Blt + Garage.Cars + Wood.Deck.SF + 
+            Enclosed.Porch + Screen.Porch + Pool.Area + Sale.Condition, 
+          data = data1c)
+
+```
+
+
+\newpage
+Then we delete some variables that seems not important. And we use anova test to check our choice is correct. The result shows that we can remove those predictor variables, and the new model we get now have 1 intercept and 18 predictor variables left.
+
+```{R,echo=FALSE,result = FALSE}
+#summary(rn2)
+rn3 <- lm(sqrt(SalePrice) ~ log(Lot.Area) + Street + Land.Slope + 
+            Overall.Qual + Mas.Vnr.Area + Exter.Qual + Bsmt.Qual + 
+            sqrt(X1st.Flr.SF) + Bsmt.Full.Bath + Kitchen.Qual + TotRms.AbvGrd + 
+            Functional + Garage.Cars + Wood.Deck.SF + 
+            Enclosed.Porch + Screen.Porch + Pool.Area + Sale.Condition, 
+          data = data1c)
+summary(rn3)
+anova(rn2, rn3) #Anova test support our choose.
+```
+
+\newpage
+This time we check all the rest predictor variables if they need to be transformed or not. The result shows we do not need to do any transformation.
+
+```{R,echo=FALSE}
+par(mfrow = c(3,4)) 
+crPlots(rn3, terms = ~ Street)
+crPlots(rn3, terms = ~ Land.Slope)
+crPlots(rn3, terms = ~ Mas.Vnr.Area)
+crPlots(rn3, terms = ~ Bsmt.Qual)
+crPlots(rn3, terms = ~ Bsmt.Full.Bath)
+crPlots(rn3, terms = ~ Kitchen.Qual)
+crPlots(rn3, terms = ~ Garage.Cars)
+crPlots(rn3, terms = ~ Wood.Deck.SF)
+crPlots(rn3, terms = ~ Enclosed.Porch)
+crPlots(rn3, terms = ~ Screen.Porch)
+crPlots(rn3, terms = ~ Pool.Area)
+#Look like no any other variable need transform
+```
+
+\newpage 
+Then we check for the interaction. Anova shown that the interaction between what we choose are not important. The model with 1 intercept and 18 predictor variables now is the best model based on current step.
+
+```{R,echo=FALSE,result = FALSE}
+interaction.plot(data1c$Mas.Vnr.Area, data1c$Exter.Qual, resid(rn3),type='b', col=c('red','blue'), lwd=2, pch=c(23,24))
+interaction.plot(data1c$Lot.Area, data1c$Overall.Qual, resid(rn3),type='b', col=c('red','blue'), lwd=2, pch=c(23,24))
+rn4 <- lm(sqrt(SalePrice) ~ log(Lot.Area) + Street + Land.Slope + 
+            Overall.Qual + Mas.Vnr.Area + Exter.Qual + Bsmt.Qual + 
+            sqrt(X1st.Flr.SF) + Bsmt.Full.Bath + Kitchen.Qual + TotRms.AbvGrd + 
+            Functional + Garage.Cars + Wood.Deck.SF + 
+            Enclosed.Porch + Screen.Porch + Pool.Area + Sale.Condition + Lot.Area:Overall.Qual + Mas.Vnr.Area:Exter.Qual, 
+          data = data1c)
+anova(rn3, rn4) #Anova shown that the interaction between those are not important.rn3 now is the best model based on current step.
+```
+
+\newpage
+Then we do a diagnostic test to see if the model fit the data and check for outliers. The result shows that our model fit the data well. 1234 seem like an outlier, equal variance seems OK, and it seems like follow the normal distribution.
+```{R,echo=FALSE,result = FALSE}
+par(mfrow=c(2,2))
+plot(rn3) # 1234 seem like an outlier, equal variance seem OK, normal distribute seem OK.
+
+```
+
+\newpage
+Our final step is just to predict the sell price by using our model.
+```{R,echo=FALSE,result = FALSE}
+head((predict(rn3, newdata = data1n, interval = "confidence"))^2)
+head(predict(rn1, newdata = data1n, interval = "confidence"))
+head(data1n$SalePrice)
+```
+
+```{R,echo=FALSE,results = FALSE}
+(mse = mean((data1n$SalePrice - predict(rn3, data1n)^2)^2))
+(rmse = sqrt(mse))
+```
+
+\newpage
+## Conlusion:
+Our final model is:
+Sell price = [intercept+log(lot.Area)+Street+Land.Slope+Overall.Qual+Mas.Vnr.Area+Exter.Qual+
+Bsmt.Qual+sqrt(X1st.Flr.SF)+Bsmt.Full.Bath+Kitchen.Qual+
+TotRms.AbvGrd+Functional+Garage.Cars+
+Wood.Deck.SF+Enclosed.Porch+Screen.Porch+Pool.Area+
+Sale.Condition]^2
+
+The MSE for our model is 1130605220, RMSE is 33624.47, which we think is fair.
+
+
+## Potential problem of the model:
+Between “accurate” and simple, we decide to make the model to be simpler. Which means that we only use very less steps and take the few most important variables as predictor variable. For those variables have very small impact to the response variable, which cannot be selected by backward step. We just ignore it. But we remove many variables, if we add those small impact all together may eventually become a big impact. So, our model might lose some accuracy. 
+
+## Suggestion:
+If we want the model be more accurate, we may add more predictor variables based on our model.
